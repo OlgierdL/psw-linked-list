@@ -1,0 +1,3 @@
+C:/Users/olgie/CLionProjects/psw/cmake-build-debug/CMakeFiles/psw.dir
+C:/Users/olgie/CLionProjects/psw/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/olgie/CLionProjects/psw/cmake-build-debug/CMakeFiles/rebuild_cache.dir
