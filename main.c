@@ -18,6 +18,18 @@ void *producer(void *arg) {
     pthread_exit(NULL);
 }
 
+void *small_producer(void *arg) {
+    TList *list = (TList *)arg;
+    for (int i = 0; i < 2; ++i) {
+        int *data = malloc(sizeof(int));
+        *data = i;
+        putItem(list, data);
+        showList(list);
+        sleep(1);
+    }
+    pthread_exit(NULL);
+}
+
 void *consumer(void *arg) {
     TList *list = (TList *)arg;
     sleep(1);
@@ -34,7 +46,60 @@ void *consumer(void *arg) {
     pthread_exit(NULL);
 }
 
+void testSetMaxSize(TList *list) {
+    printf("Test: Adjusting Max Size\n");
+    printf("Initial list:\n");
+    showList(list);
+
+    printf("Increasing max size to 10.\n");
+    setMaxSize(list, 10);
+
+    printf("Filling list after increasing max size.\n");
+    for (int i = 0; i < 5; ++i) {
+        int *data = malloc(sizeof(int));
+        *data = 100 + i;
+        putItem(list, data);
+    }
+    showList(list);
+
+    printf("Decreasing max size to 7.\n");
+    setMaxSize(list, 7);
+    printf("List after decreasing max size:\n");
+    showList(list);
+
+    printf("Trying to add more items after decreasing max size.\n");
+    pthread_t prod_thread;
+    pthread_create(&prod_thread, NULL, small_producer, list);
+    int* data1 = getItem(list);
+    free(data1);
+    int* data2 = getItem(list);
+    free(data2);
+    printf("Removed two items.\n");
+    pthread_join(prod_thread, NULL);
+
+    printf("Final list after testing max size adjustments:\n");
+    showList(list);
+}
+
+void testEdgeCases() {
+    printf("Test: Edge Cases\n");
+    TList *list = createList(2);
+    printf("Testing adding to an empty list:\n");
+    int *data1 = malloc(sizeof(int));
+    *data1 = 42;
+    putItem(list, data1);
+    showList(list);
+
+    printf("Filling the list to its max capacity:\n");
+    int *data2 = malloc(sizeof(int));
+    *data2 = 84;
+    putItem(list, data2);
+    showList(list);
+    destroyList(list);
+}
+
 int main() {
+    printf("Basic tests:\n\n");
     TList *list = createList(5);
     printf("Initial list:\n");
     showList(list);
@@ -81,6 +146,22 @@ int main() {
 
     destroyList(list);
     destroyList(extra_list);
+
+    printf("Advanced tests:\n\n");
+
+    TList *list2 = createList(2);
+    int *itm1 = malloc(sizeof(int));
+    int *itm2 = malloc(sizeof(int));
+    *itm1 = 98;
+    putItem(list2, itm1);
+    *itm2 = 99;
+    putItem(list2, itm2);
+    printf("Put two items in the list:\n");
+    showList(list2);
+    testSetMaxSize(list2);
+    destroyList(list2);
+
+    testEdgeCases();
 
     return 0;
 }

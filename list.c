@@ -8,13 +8,14 @@
 TList* createList (int s) {
     if(s < 0) return NULL;
     TList* list = (TList*)malloc(sizeof(TList));
-    sem_init(&list->sem_free_slots, 0, s);
     pthread_mutex_init(&list->mt, NULL);
     pthread_mutex_lock(&list->mt);
     list->max_size = s;
     list->first = NULL;
+    pthread_cond_init(&list->cond_not_empty, NULL);
+    pthread_cond_init(&list->cond_not_full, NULL);
     pthread_mutex_unlock(&list->mt);
-    printf("created list of size %d\n", list->max_size);
+    printf("Created list of size %d\n", list->max_size);
     return list;
 };
 
@@ -31,7 +32,7 @@ int getCount (TList* lst) {
 }
 
 void setMaxSize (TList* lst, int s) {
-    if(s < 1) {
+    if(s < 0) {
         return;
     }
     pthread_mutex_lock(&lst->mt);
@@ -39,30 +40,23 @@ void setMaxSize (TList* lst, int s) {
     lst->max_size = s;
 
     if(s>current_size) {
-        for(int i = 0; i < s - current_size; i++) {
-            sem_post(lst->sem_free_slots);
-        }
+        pthread_cond_broadcast(&lst->cond_not_full);
     }
-    else if(s < current_size) {
-        for(int i = 0; i < current_size - s; i++) {
-            int sem_value;
-            sem_getvalue(&lst->sem_free_slots, &sem_value);
-            if(sem_value > 0) {
-                sem_wait(lst->sem_free_slots);
-            }
-        }
+    else if(s < current_size && lst->first != NULL) {
+        pthread_cond_broadcast(&lst->cond_not_empty);
     }
     pthread_mutex_unlock(&lst->mt);
 }
 
 void putItem (TList *lst, int *itm) {
-    sem_wait(&lst->sem_free_slots);
     pthread_mutex_lock(&lst->mt);
+    while (getCount(lst) >= lst->max_size) {
+        pthread_cond_wait(&lst->cond_not_full, &lst->mt);
+    }
 
     element* new_element = (element*)malloc(sizeof(element));
     if(!new_element) {
         pthread_mutex_unlock(&lst->mt);
-        sem_post(&lst->sem_free_slots);
         return;
     }
     new_element->data = malloc(sizeof(int));
@@ -81,25 +75,22 @@ void putItem (TList *lst, int *itm) {
         lst->first = new_element;
         new_element->next = NULL;
     }
+    pthread_cond_signal(&lst->cond_not_empty);
     printf("Putting %d in list.\n", *itm);
     pthread_mutex_unlock(&lst->mt);
 }
 
 void* getItem(TList *lst) {
     pthread_mutex_lock(&lst->mt);
-    element* to_remove = lst->first;
-    if(to_remove == NULL) {
-        printf("List is empty.\n");
-        pthread_mutex_unlock(&lst->mt);
-        return NULL;
+    while (lst->first == NULL) {
+        pthread_cond_wait(&lst->cond_not_empty, &lst->mt);
     }
+    element* to_remove = lst->first;
     lst->first = to_remove->next;
     int* data_to_return = to_remove->data;
     free(to_remove);
-    sem_post(&lst->sem_free_slots);
-    int val;
-    sem_getvalue(&lst->sem_free_slots, &val);
     printf("Getting %d from list.\n" , *data_to_return);
+    pthread_cond_signal(&lst->cond_not_full);
     pthread_mutex_unlock(&lst->mt);
     return data_to_return;
 }
@@ -123,7 +114,7 @@ int removeItem (TList *lst, void *itm) {
             }
             free(current->data);
             free(current);
-            sem_post(&lst->sem_free_slots);
+            pthread_cond_signal(&lst->cond_not_full);
             pthread_mutex_unlock(&lst->mt);
             return 0;
         }
@@ -146,8 +137,12 @@ void destroyList(TList* lst) {
         free(temp_el);
     }
     lst->first = NULL;
-    free(lst);
     pthread_mutex_unlock(&lst->mt);
+
+    pthread_mutex_destroy(&lst->mt);
+    pthread_cond_destroy(&lst->cond_not_empty);
+    pthread_cond_destroy(&lst->cond_not_full);
+    free(lst);
 }
 
 void appendItems(TList* lst, TList* lst2) {
@@ -157,41 +152,41 @@ void appendItems(TList* lst, TList* lst2) {
     showList(lst2);
     pthread_mutex_lock(&lst->mt);
     pthread_mutex_lock(&lst2->mt);
-    int count = getCount(lst2);
-    for(int i = 0; i < count; i++) {
+    while (lst2->first != NULL) {
         element* to_remove = lst2->first;
-        if(to_remove == NULL) {
-            break;
-        }
+
         lst2->first = to_remove->next;
         int* itm = to_remove->data;
         free(to_remove);
-        sem_post(&lst2->sem_free_slots);
+        pthread_cond_signal(&lst2->cond_not_full);
 
-        sem_wait(&lst->sem_free_slots);
+        while (getCount(lst) >= lst->max_size) {
+            pthread_cond_wait(&lst->cond_not_full, &lst->mt);
+        }
+
         element* new_element = (element*)malloc(sizeof(element));
         if(!new_element) {
             printf("Failed to create new element.");
             pthread_mutex_unlock(&lst2->mt);
-            sem_post(&lst->sem_free_slots);
             pthread_mutex_unlock(&lst->mt);
             return;
         }
         new_element->data = itm;
+        new_element->next = NULL;
+
         if(lst->first != NULL) {
             element* current = lst->first;
             while(current->next != NULL) {
                 current = current->next;
             }
             current->next = new_element;
-            new_element->next = NULL;
         }
         else {
             lst->first = new_element;
-            new_element->next = NULL;
         }
+        pthread_cond_signal(&lst->cond_not_empty);
     }
-    lst2->first = NULL;
+
     pthread_mutex_unlock(&lst->mt);
     pthread_mutex_unlock(&lst2->mt);
 }

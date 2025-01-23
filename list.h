@@ -16,7 +16,8 @@ struct TList {
     element* first;
     int max_size;
     pthread_mutex_t mt;
-    sem_t sem_free_slots;
+    pthread_cond_t cond_not_empty;
+    pthread_cond_t cond_not_full;
 };
 typedef struct TList TList;
 
@@ -27,8 +28,6 @@ void destroyList(TList *lst);
 void putItem(TList *lst, int *itm);
 
 void *getItem(TList *lst);
-
-void *popItem(TList *lst);
 
 int removeItem(TList *lst, void *itm);
 
