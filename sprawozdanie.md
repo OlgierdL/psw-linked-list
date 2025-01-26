@@ -20,13 +20,15 @@ Stosowane są dwie struktury: `TList` oraz `element`.
    ```C
     struct TList {
       element* first;
+      element* last;
+      int count;
       int max_size;
       pthread_mutex_t mt;
       pthread_cond_t cond_not_empty;
       pthread_cond_t cond_not_full;
     };
    ```
-   Zawiera ona wskaźnik na głowę listy ```first```, zmienną ```max_size```, zamek ```mt``` oraz zmienne warunkowe ```cond_not_empty``` i `cond_not_full` służące do kontrolowania dodawania i usuwania elementów.
+   Zawiera ona wskaźnik na głowę listy `first`, ostatni element `last`, zmienne `max_size` i `count`, zamek `mt` oraz zmienne warunkowe `cond_not_empty` i `cond_not_full` służące do kontrolowania dodawania i usuwania elementów.
 
 
 2. Element listy definiowany jest strukturą `element`:
@@ -43,8 +45,9 @@ Stosowane są dwie struktury: `TList` oraz `element`.
 
 1. `TList *createList(int s)` -- stworzenie nowej struktury `TList` o możliwym maksymalnym rozmiarze `s`.
 2. `void destroyList(TList *lst)` -- usunięcie listy `lst` i zwolnienie pamięci.
-3. `void putItem(TList *lst, int *itm)` -- umieszczenie nowego elementu zawierającego dane `itm` na końcu listy `lst`.
+3. `void putItem(TList *lst, void *itm)` -- umieszczenie nowego elementu zawierającego dane `itm` na końcu listy `lst`.
 4. `void *getItem(TList *lst)` -- pobranie z listy `lst` pierwszego elementu (usunięcie go z listy zwracając wskaźnik).
+5. `void* popItem(TList* lst)` -- pobranie z listy `lst` ostatniego elementu (usunięcie go z listy zwracając wskaźnik).
 5. `int removeItem(TList *lst, void *itm)` -- usunięcie z listy `lst` elementu zawierającego wskaźnik `itm`.
 6. `int getCount(TList *lst)` -- zwraca liczbę elementów listy `lst`.
 7. `void setMaxSize(TList *lst, int s)` -- ustawia nowy maksymalny rozmiar listy `lst`. Nie usuwa elementów o przekraczających go indeksach, ale uniemożliwia dodanie nowych danych do czasu odpowiedniego zmniejszenia długości listy.
@@ -65,95 +68,87 @@ gcc main.c list.c -o program -lpthread -Wall
 ./program
 ```
 Wynik:
-```Basic tests:
+```
+Basic tests:
 
 Created list of size 5
 Initial list:
-Putting 0 in list.
-0
 Created p/c threads
-Getting 0 from list.
-Putting 1 in list.
+Putting data in list.
+0
+Getting data from list.
 1
-Putting 2 in list.
+Putting data in list.
+1
+Putting data in list.
 1
 2
-Getting 1 from list.
+Getting data from list.
 2
-Putting 3 in list.
-2
-3
-Putting 4 in list.
+Putting data in list.
 2
 3
-4
-Getting 2 from list.
+Putting data in list.
+2
 3
 4
-Putting 5 in list.
+Getting data from list.
+3
+4
+Putting data in list.
 3
 4
 5
-Putting 6 in list.
+Putting data in list.
 3
 4
 5
 6
-Getting 3 from list.
+Getting data from list.
 4
 5
 6
-Putting 7 in list.
-4
-5
-6
-7
-Putting 8 in list.
+Putting data in list.
 4
 5
 6
 7
-8
-Getting 4 from list.
+Putting data in list.
+4
 5
 6
 7
 8
-Putting 9 in list.
+Getting data from list.
+5
+6
+7
+8
+Putting data in list.
 5
 6
 7
 8
 9
-Getting 5 from list.
+Getting data from list.
 6
 7
 8
 9
-Getting 6 from list.
+Getting data from list.
 7
 8
 9
-Getting 7 from list.
+Getting data from list.
 8
 9
-Getting 8 from list.
+Getting data from list.
 9
-Getting 9 from list.
+Getting data from list.
 Finished p/c threads
 Created list of size 3
 Created extra list:
-Putting 10 in list.
-Putting 11 in list.
-Putting 12 in list.
 Extra list before appending:
-10
-11
-12
-Putting 1 in list.
-Appending items to list:
-1
-List being apppended:
 10
 11
 12
@@ -167,8 +162,7 @@ List before removing:
 10
 11
 12
-Found item to remove.
-Successfully removed 1546304818 from the list
+Successfully removed 352677648 from the list
 List after removing:
 1
 11
@@ -176,8 +170,6 @@ List after removing:
 Advanced tests:
 
 Created list of size 2
-Putting 98 in list.
-Putting 99 in list.
 Put two items in the list:
 98
 99
@@ -187,11 +179,6 @@ Initial list:
 99
 Increasing max size to 10.
 Filling list after increasing max size.
-Putting 100 in list.
-Putting 101 in list.
-Putting 102 in list.
-Putting 103 in list.
-Putting 104 in list.
 98
 99
 100
@@ -209,17 +196,15 @@ List after decreasing max size:
 103
 104
 Trying to add more items after decreasing max size.
-Getting 98 from list.
-Getting 99 from list.
 Removed two items.
-Putting 0 in list.
+Putting data in list.
 100
 101
 102
 103
 104
 0
-Putting 1 in list.
+Putting data in list.
 100
 101
 102
@@ -235,11 +220,18 @@ Final list after testing max size adjustments:
 104
 0
 1
+Popping:
+100
+101
+102
+103
+104
+0
 Test: Edge Cases
 Created list of size 2
 Testing adding to an empty list:
-Putting 42 in list.
 42
 Filling the list to its max capacity:
-Putting 84 in list.
-42```
+42
+84
+```
