@@ -8,12 +8,14 @@
 // ==============================================
 struct element {
     struct element* next;
-    int* data;
+    void* data;
 };
 typedef struct element element;
 
 struct TList {
     element* first;
+    element* last;
+    int count;
     int max_size;
     pthread_mutex_t mt;
     pthread_cond_t cond_not_empty;
@@ -25,9 +27,11 @@ TList *createList(int s);
 
 void destroyList(TList *lst);
 
-void putItem(TList *lst, int *itm);
+void putItem(TList *lst, void *itm);
 
 void *getItem(TList *lst);
+
+void* popItem(TList* lst);
 
 int removeItem(TList *lst, void *itm);
 
