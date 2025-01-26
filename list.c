@@ -12,6 +12,8 @@ TList* createList (int s) {
     pthread_mutex_lock(&list->mt);
     list->max_size = s;
     list->first = NULL;
+    list->last = NULL;
+    list->count = 0;
     pthread_cond_init(&list->cond_not_empty, NULL);
     pthread_cond_init(&list->cond_not_full, NULL);
     pthread_mutex_unlock(&list->mt);
@@ -20,7 +22,11 @@ TList* createList (int s) {
 };
 
 int getCount (TList* lst) {
-    if (!lst || !lst->first) return 0;
+    pthread_mutex_lock(&lst->mt);
+    if (!lst || !lst->first) {
+        pthread_mutex_unlock(&lst->mt);
+        return 0;
+    }
 
     int count = 1;
     element* current = lst->first;
@@ -28,6 +34,7 @@ int getCount (TList* lst) {
         count++;
         current = current->next;
     }
+    pthread_mutex_unlock(&lst->mt);
     return count;
 }
 
@@ -42,15 +49,15 @@ void setMaxSize (TList* lst, int s) {
     if(s>current_size) {
         pthread_cond_broadcast(&lst->cond_not_full);
     }
-    else if(s < current_size && lst->first != NULL) {
-        pthread_cond_broadcast(&lst->cond_not_empty);
-    }
+    // else if(s < current_size && lst->first != NULL) {
+    //     pthread_cond_broadcast(&lst->cond_not_empty);
+    // }
     pthread_mutex_unlock(&lst->mt);
 }
 
-void putItem (TList *lst, int *itm) {
+void putItem (TList *lst, void *itm) {
     pthread_mutex_lock(&lst->mt);
-    while (getCount(lst) >= lst->max_size) {
+    while (lst->count >= lst->max_size) {
         pthread_cond_wait(&lst->cond_not_full, &lst->mt);
     }
 
@@ -59,24 +66,23 @@ void putItem (TList *lst, int *itm) {
         pthread_mutex_unlock(&lst->mt);
         return;
     }
-    new_element->data = malloc(sizeof(int));
-    if (new_element->data) {
-        *(new_element->data) = *itm;
-    }
+    new_element->data = itm;
     if(lst->first != NULL) {
-        element* current = lst->first;
-        while(current->next != NULL) {
-            current = current->next;
-        }
+        element* current = lst->last;
         current->next = new_element;
+        lst->last = new_element;
         new_element->next = NULL;
+        lst->count += 1;
     }
     else {
         lst->first = new_element;
+        lst->last = lst->first;
         new_element->next = NULL;
+        lst->count += 1;
     }
     pthread_cond_signal(&lst->cond_not_empty);
-    printf("Putting %d in list.\n", *itm);
+    //int cast for testing
+    // printf("Putting %d in list.\n", *(int*)itm);
     pthread_mutex_unlock(&lst->mt);
 }
 
@@ -87,12 +93,46 @@ void* getItem(TList *lst) {
     }
     element* to_remove = lst->first;
     lst->first = to_remove->next;
+    lst->count -= 1;
+    if(lst->first == NULL) {
+        lst->last = NULL;
+    }
     int* data_to_return = to_remove->data;
     free(to_remove);
-    printf("Getting %d from list.\n" , *data_to_return);
+    // printf("Getting %d from list.\n" , *data_to_return);
     pthread_cond_signal(&lst->cond_not_full);
     pthread_mutex_unlock(&lst->mt);
     return data_to_return;
+}
+
+void* popItem(TList *lst) {
+    pthread_mutex_lock(&lst->mt);
+    if(lst->first == NULL) {
+        pthread_mutex_unlock(&lst->mt);
+        return NULL;
+    }
+    element* current = lst->first;
+    element *previous = NULL;
+    void* to_return = NULL;
+    while(current->next != NULL) {
+        previous = current;
+        current = current->next;
+    }
+    if(previous == NULL) {
+        lst->first = NULL;
+        lst->last = NULL;
+    }
+    else {
+        lst->last = previous;
+        previous->next = NULL;
+    }
+    to_return = current->data;
+    lst->count -= 1;
+    free(current);
+    pthread_cond_signal(&lst->cond_not_full);
+
+    pthread_mutex_unlock(&lst->mt);
+    return to_return;
 }
 
 int removeItem (TList *lst, void *itm) {
@@ -104,16 +144,24 @@ int removeItem (TList *lst, void *itm) {
     element* current = lst->first;
     element *previous = NULL;
     while(current != NULL) {
-        if(current->data == itm) {
-            printf("Found item to remove.\n");
-            if(previous == NULL) {
+        if(current->data == itm)
+        {
+            // printf("Found item to remove.\n");
+            if(previous == NULL)
+            {
                 lst->first = current->next;
             }
-            else {
+            else
+            {
                 previous->next = current->next;
             }
             free(current->data);
             free(current);
+            lst->count -= 1;
+            if(lst->count <= 1)
+            {
+                lst->last = lst->first;
+            }
             pthread_cond_signal(&lst->cond_not_full);
             pthread_mutex_unlock(&lst->mt);
             return 0;
@@ -137,6 +185,7 @@ void destroyList(TList* lst) {
         free(temp_el);
     }
     lst->first = NULL;
+    lst->last = NULL;
     pthread_mutex_unlock(&lst->mt);
 
     pthread_mutex_destroy(&lst->mt);
@@ -146,43 +195,31 @@ void destroyList(TList* lst) {
 }
 
 void appendItems(TList* lst, TList* lst2) {
-    printf("Appending items to list:\n");
-    showList(lst);
-    printf("List being apppended:\n");
-    showList(lst2);
+    // printf("Appending items to list:\n");
+    // showList(lst);
+    // printf("List being apppended:\n");
+    // showList(lst2);
     pthread_mutex_lock(&lst->mt);
     pthread_mutex_lock(&lst2->mt);
     while (lst2->first != NULL) {
-        element* to_remove = lst2->first;
-
-        lst2->first = to_remove->next;
-        int* itm = to_remove->data;
-        free(to_remove);
+        element* el = lst2->first;
+        lst2->first = el->next;
+        lst2->count -= 1;
+        if(lst2->first == NULL) {
+            lst2->last = NULL;
+        }
         pthread_cond_signal(&lst2->cond_not_full);
 
-        while (getCount(lst) >= lst->max_size) {
-            pthread_cond_wait(&lst->cond_not_full, &lst->mt);
-        }
-
-        element* new_element = (element*)malloc(sizeof(element));
-        if(!new_element) {
-            printf("Failed to create new element.");
-            pthread_mutex_unlock(&lst2->mt);
-            pthread_mutex_unlock(&lst->mt);
-            return;
-        }
-        new_element->data = itm;
-        new_element->next = NULL;
-
         if(lst->first != NULL) {
-            element* current = lst->first;
-            while(current->next != NULL) {
-                current = current->next;
-            }
-            current->next = new_element;
+            element* current = lst->last;
+            current->next = el;
+            lst->last = el;
+            lst->count += 1;
         }
         else {
-            lst->first = new_element;
+            lst->first = el;
+            lst->last = el;
+            lst->count += 1;
         }
         pthread_cond_signal(&lst->cond_not_empty);
     }
@@ -203,7 +240,8 @@ void showList(TList* lst) {
     element* current = lst->first;
     while(current != NULL) {
         if(current->data != NULL) {
-            printf("%d\t", *current->data);
+            //int cast for testing
+            printf("%d\t", *(int*)current->data);
         }
         else {
             printf("NULL\t");
