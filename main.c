@@ -12,6 +12,7 @@ void *producer(void *arg) {
         int *data = malloc(sizeof(int));
         *data = i;
         putItem(list, data);
+        printf("Putting data in list.\n");
         showList(list);
         sleep(1);
     }
@@ -24,6 +25,7 @@ void *small_producer(void *arg) {
         int *data = malloc(sizeof(int));
         *data = i;
         putItem(list, data);
+        printf("Putting data in list.\n");
         showList(list);
         sleep(1);
     }
@@ -36,6 +38,7 @@ void *consumer(void *arg) {
     for (int i = 0; i < 10; ++i) {
         int *data = (int *)getItem(list);
         if (data) {
+            printf("Getting data from list.\n");
             free(data);
             showList(list);
         } else {
@@ -159,6 +162,9 @@ int main() {
     printf("Put two items in the list:\n");
     showList(list2);
     testSetMaxSize(list2);
+    printf("Popping:\n");
+    popItem(list2);
+    showList(list2);
     destroyList(list2);
 
     testEdgeCases();
