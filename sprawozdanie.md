@@ -36,7 +36,7 @@ Stosowane są dwie struktury: `TList` oraz `element`.
    ```C
    struct element {
     struct element* next;
-    int* data;
+    void* data;
     };
    ```
    Zawiera ona wskaźnik na następny element `next` oraz wskaźnik na dane `data`.
