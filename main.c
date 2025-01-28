@@ -152,13 +152,18 @@ int main() {
 
     printf("Advanced tests:\n\n");
 
-    TList *list2 = createList(2);
+    TList *list2 = createList(3);
     int *itm1 = malloc(sizeof(int));
     int *itm2 = malloc(sizeof(int));
+    int *itm3 = malloc(sizeof(int));
     *itm1 = 98;
     putItem(list2, itm1);
     *itm2 = 99;
     putItem(list2, itm2);
+    *itm3 = 100;
+    putItem(list2, itm3);
+    removeItem(list2, itm2);
+    setMaxSize(list2, 2);
     printf("Put two items in the list:\n");
     showList(list2);
     testSetMaxSize(list2);

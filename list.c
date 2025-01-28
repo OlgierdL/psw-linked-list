@@ -155,13 +155,13 @@ int removeItem (TList *lst, void *itm) {
             {
                 previous->next = current->next;
             }
+            if(lst->last == current)
+            {
+                lst->last = previous;
+            }
             free(current->data);
             free(current);
             lst->count -= 1;
-            if(lst->count <= 1)
-            {
-                lst->last = lst->first;
-            }
             pthread_cond_signal(&lst->cond_not_full);
             pthread_mutex_unlock(&lst->mt);
             return 0;
@@ -204,6 +204,7 @@ void appendItems(TList* lst, TList* lst2) {
     while (lst2->first != NULL) {
         element* el = lst2->first;
         lst2->first = el->next;
+        el->next = NULL;
         lst2->count -= 1;
         if(lst2->first == NULL) {
             lst2->last = NULL;
