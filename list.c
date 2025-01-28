@@ -14,6 +14,7 @@ TList* createList (int s) {
     list->first = NULL;
     list->last = NULL;
     list->count = 0;
+    list->is_destroyed = 0;
     pthread_cond_init(&list->cond_not_empty, NULL);
     pthread_cond_init(&list->cond_not_full, NULL);
     pthread_mutex_unlock(&list->mt);
@@ -23,17 +24,7 @@ TList* createList (int s) {
 
 int getCount (TList* lst) {
     pthread_mutex_lock(&lst->mt);
-    if (!lst || !lst->first) {
-        pthread_mutex_unlock(&lst->mt);
-        return 0;
-    }
-
-    int count = 1;
-    element* current = lst->first;
-    while(current->next != NULL) {
-        count++;
-        current = current->next;
-    }
+    int count = lst->count;
     pthread_mutex_unlock(&lst->mt);
     return count;
 }
@@ -57,8 +48,16 @@ void setMaxSize (TList* lst, int s) {
 
 void putItem (TList *lst, void *itm) {
     pthread_mutex_lock(&lst->mt);
+    if(lst->is_destroyed == 1) {
+        pthread_mutex_unlock(&lst->mt);
+        return;
+    }
     while (lst->count >= lst->max_size) {
         pthread_cond_wait(&lst->cond_not_full, &lst->mt);
+        if(lst->is_destroyed == 1) {
+            pthread_mutex_unlock(&lst->mt);
+            return;
+        }
     }
 
     element* new_element = (element*)malloc(sizeof(element));
@@ -88,8 +87,16 @@ void putItem (TList *lst, void *itm) {
 
 void* getItem(TList *lst) {
     pthread_mutex_lock(&lst->mt);
+    if(lst->is_destroyed == 1) {
+        pthread_mutex_unlock(&lst->mt);
+        return NULL;
+    }
     while (lst->first == NULL) {
         pthread_cond_wait(&lst->cond_not_empty, &lst->mt);
+        if(lst->is_destroyed == 1) {
+            pthread_mutex_unlock(&lst->mt);
+            return NULL;
+        }
     }
     element* to_remove = lst->first;
     lst->first = to_remove->next;
@@ -107,9 +114,16 @@ void* getItem(TList *lst) {
 
 void* popItem(TList *lst) {
     pthread_mutex_lock(&lst->mt);
-    if(lst->first == NULL) {
+    if(lst->is_destroyed == 1) {
         pthread_mutex_unlock(&lst->mt);
         return NULL;
+    }
+    while (lst->first == NULL) {
+        pthread_cond_wait(&lst->cond_not_empty, &lst->mt);
+        if(lst->is_destroyed == 1) {
+            pthread_mutex_unlock(&lst->mt);
+            return NULL;
+        }
     }
     element* current = lst->first;
     element *previous = NULL;
@@ -137,6 +151,10 @@ void* popItem(TList *lst) {
 
 int removeItem (TList *lst, void *itm) {
     pthread_mutex_lock(&lst->mt);
+    if(lst->is_destroyed == 1) {
+        pthread_mutex_unlock(&lst->mt);
+        return -1;
+    }
     if(lst->first == NULL) {
         pthread_mutex_unlock(&lst->mt);
         return -1;
@@ -175,7 +193,10 @@ int removeItem (TList *lst, void *itm) {
 
 void destroyList(TList* lst) {
     pthread_mutex_lock(&lst->mt);
-
+    lst->is_destroyed = 1;
+    pthread_cond_broadcast(&lst->cond_not_empty);
+    pthread_cond_broadcast(&lst->cond_not_full);
+    pthread_mutex_unlock(&lst->mt);
     element *current = lst->first;
 
     while(current) {
@@ -186,7 +207,6 @@ void destroyList(TList* lst) {
     }
     lst->first = NULL;
     lst->last = NULL;
-    pthread_mutex_unlock(&lst->mt);
 
     pthread_mutex_destroy(&lst->mt);
     pthread_cond_destroy(&lst->cond_not_empty);

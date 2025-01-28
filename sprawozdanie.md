@@ -23,12 +23,13 @@ Stosowane są dwie struktury: `TList` oraz `element`.
       element* last;
       int count;
       int max_size;
+      int is_destroyed;
       pthread_mutex_t mt;
       pthread_cond_t cond_not_empty;
       pthread_cond_t cond_not_full;
     };
    ```
-   Zawiera ona wskaźnik na głowę listy `first`, ostatni element `last`, zmienne `max_size` i `count`, zamek `mt` oraz zmienne warunkowe `cond_not_empty` i `cond_not_full` służące do kontrolowania dodawania i usuwania elementów.
+   Zawiera ona wskaźnik na głowę listy `first`, ostatni element `last`, zmienne `max_size` i `count`, zamek `mt` oraz zmienne warunkowe `cond_not_empty` i `cond_not_full` służące do kontrolowania dodawania i usuwania elementów. Do tego zmienna `is_destroyed` zabezpiecza synchronizację przy usuwaniu listy.
 
 
 2. Element listy definiowany jest strukturą `element`:
