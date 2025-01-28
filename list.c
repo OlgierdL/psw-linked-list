@@ -196,7 +196,6 @@ void destroyList(TList* lst) {
     lst->is_destroyed = 1;
     pthread_cond_broadcast(&lst->cond_not_empty);
     pthread_cond_broadcast(&lst->cond_not_full);
-    pthread_mutex_unlock(&lst->mt);
     element *current = lst->first;
 
     while(current) {
@@ -207,7 +206,7 @@ void destroyList(TList* lst) {
     }
     lst->first = NULL;
     lst->last = NULL;
-
+    pthread_mutex_unlock(&lst->mt);
     pthread_mutex_destroy(&lst->mt);
     pthread_cond_destroy(&lst->cond_not_empty);
     pthread_cond_destroy(&lst->cond_not_full);
