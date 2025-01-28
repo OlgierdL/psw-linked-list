@@ -17,6 +17,7 @@ struct TList {
     element* last;
     int count;
     int max_size;
+    int is_destroyed;
     pthread_mutex_t mt;
     pthread_cond_t cond_not_empty;
     pthread_cond_t cond_not_full;
